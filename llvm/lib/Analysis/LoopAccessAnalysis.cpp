@@ -2566,23 +2566,23 @@ bool LoopAccessInfo::analyzeLoop(AAResults *AA, const LoopInfo *LI,
       if (Call && getVectorIntrinsicIDForCall(Call, TLI))
         continue;
 
-      // If this is a load, save it. If this instruction can read from memory
-      // but is not a load, we only allow it if it's a call to a function with a
-      // vector mapping and no pointer arguments.
+      auto hasPointerArgs = [](CallBase *CB) {
+        return any_of(CB->args(), [](Value const *Arg) {
+          return Arg->getType()->isPointerTy();
+        });
+      };
+
+      // If the function has an explicit vectorized counterpart, and does not
+      // take output/input pointers or we're working with a parallel loop, we
+      // can safely assume that it can be vectorized.
+      if (Call && !Call->isNoBuiltin() && Call->getCalledFunction() &&
+          ((!hasPointerArgs(Call) && I.mayReadFromMemory()) ||
+           IsAnnotatedParallel) &&
+          !VFDatabase::getMappings(*Call).empty())
+        continue;
+
+      // If this is a load, save it.
       if (I.mayReadFromMemory()) {
-        auto hasPointerArgs = [](CallBase *CB) {
-          return any_of(CB->args(), [](Value const *Arg) {
-            return Arg->getType()->isPointerTy();
-          });
-        };
-
-        // If the function has an explicit vectorized counterpart, and does not
-        // take output/input pointers, we can safely assume that it can be
-        // vectorized.
-        if (Call && !Call->isNoBuiltin() && Call->getCalledFunction() &&
-            !hasPointerArgs(Call) && !VFDatabase::getMappings(*Call).empty())
-          continue;
-
         auto *Ld = dyn_cast<LoadInst>(&I);
         if (!Ld) {
           recordAnalysis("CantVectorizeInstruction", Ld)
