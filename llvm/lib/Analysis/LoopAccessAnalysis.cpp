@@ -2643,6 +2643,13 @@ bool LoopAccessInfo::analyzeLoop(AAResults *AA, const LoopInfo *LI,
     return true;
   }
 
+  if (IsAnnotatedParallel) {
+    LLVM_DEBUG(
+        dbgs() << "LAA: A loop annotated parallel, ignore memory dependency "
+               << "checks.\n");
+    return true;
+  }
+
   MemoryDepChecker::DepCandidates DepCands;
   AccessAnalysis Accesses(TheLoop, AA, LI, *DT, DepCands, *PSE,
                           LoopAliasScopes);
@@ -2687,13 +2694,6 @@ bool LoopAccessInfo::analyzeLoop(AAResults *AA, const LoopInfo *LI,
                       Accesses.addStore(NewLoc, AccessTy);
                     });
     }
-  }
-
-  if (IsAnnotatedParallel) {
-    LLVM_DEBUG(
-        dbgs() << "LAA: A loop annotated parallel, ignore memory dependency "
-               << "checks.\n");
-    return true;
   }
 
   for (LoadInst *LD : Loads) {
