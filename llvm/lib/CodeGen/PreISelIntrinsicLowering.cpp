@@ -42,6 +42,7 @@
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
 #include "llvm/Transforms/Utils/LowerVectorIntrinsics.h"
+#include "llvm/Transforms/Utils/LowerParallelAlloca.h"
 
 using namespace llvm;
 
@@ -673,31 +674,20 @@ static bool expandLoopTrap(Function &Intr) {
   return true;
 }
 
-static bool lowerParallelAlloca(Function &F) {
+static bool lowerParallelAllocas(Function &F) {
   if (F.use_empty())
     return false;
 
   // If we encounter parallel allocas in this pass, that means that they are
-  // just regular allocas. It's supposed to be handled by the vectorizer, but
-  // if it doesn't run or chooses not to vectorize a loop, we end up having to
-  // handle it here.
-
+  // just regular allocas. The intrinsic is supposed to be handled by the
+  // vectorizer, but if it doesn't run or chooses not to vectorize a loop, we
+  // end up having to handle it here.
   bool Changed = false;
   for (Use &U : llvm::make_early_inc_range(F.uses())) {
-    auto CI = dyn_cast<CallInst>(U.getUser());
+    auto *CI = dyn_cast<IntrinsicInst>(U.getUser());
     if (!CI || CI->getCalledOperand() != &F)
       continue;
-
-    auto AllocationSize = CI->getArgOperand(0);
-    auto Alignment = cast<ConstantInt>(CI->getArgOperand(1))->getAlignValue();
-
-    IRBuilder<> B(CI);
-    Function *ParentFunc = CI->getParent()->getParent();
-    B.SetInsertPointPastAllocas(ParentFunc);
-
-    auto NewAlloca = B.Insert(new AllocaInst(B.getInt8Ty(), 0, AllocationSize, Alignment));
-    CI->replaceAllUsesWith(NewAlloca);
-    CI->eraseFromParent();
+    lowerParallelAllocaToRegularAlloca(CI);
     Changed = true;
   }
   return Changed;
@@ -859,7 +849,7 @@ bool PreISelIntrinsicLowering::lowerIntrinsics(Module &M) const {
           Changed |= expandCondLoop(*CondLoop);
       break;
     case Intrinsic::parallel_alloca:
-      Changed |= lowerParallelAlloca(F);
+      Changed |= lowerParallelAllocas(F);
       break;
     }
   }
