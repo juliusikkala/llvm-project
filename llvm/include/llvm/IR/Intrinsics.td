@@ -2000,6 +2000,8 @@ def int_stepvector : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
 def int_reloc_none : DefaultAttrsIntrinsic<[], [llvm_metadata_ty],
   [IntrNoMem, IntrHasSideEffects]>;
 
+def int_parallel_alloca : DefaultAttrsIntrinsic<[llvm_anyptr_ty], [llvm_anyint_ty, llvm_anyint_ty], [NoAlias<RetIndex>, NoUndef<RetIndex>, NonNull<RetIndex>, ImmArg<ArgIndex<1>>], "llvm.parallel_alloca">;
+
 //===---------------- Vector Predication Intrinsics --------------===//
 // Memory Intrinsics
 def int_vp_store : DefaultAttrsIntrinsic<[],
