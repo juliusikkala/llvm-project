@@ -673,6 +673,28 @@ static bool expandLoopTrap(Function &Intr) {
   return true;
 }
 
+static bool lowerParallelAlloca(Function &F) {
+  if (F.use_empty())
+    return false;
+
+  bool Changed = false;
+  for (Use &U : llvm::make_early_inc_range(F.uses())) {
+    auto CI = dyn_cast<CallInst>(U.getUser());
+    if (!CI || CI->getCalledOperand() != &F)
+      continue;
+
+    auto AllocationSize = CI->getArgOperand(0);
+    auto Alignment = cast<ConstantInt>(CI->getArgOperand(1))->getAlignValue();
+
+    IRBuilder<> B(CI);
+    auto NewAlloca = B.Insert(new AllocaInst(B.getInt8Ty(), 0, AllocationSize, Alignment));
+    CI->replaceAllUsesWith(NewAlloca);
+    CI->eraseFromParent();
+    Changed = true;
+  }
+  return Changed;
+}
+
 bool PreISelIntrinsicLowering::lowerIntrinsics(Module &M) const {
   // Map unique constants to globals.
   DenseMap<Constant *, GlobalVariable *> CMap;
@@ -827,6 +849,9 @@ bool PreISelIntrinsicLowering::lowerIntrinsics(Module &M) const {
       if (!TM->canLowerCondLoop())
         if (auto *CondLoop = M.getFunction("llvm.cond.loop"))
           Changed |= expandCondLoop(*CondLoop);
+      break;
+    case Intrinsic::parallel_alloca:
+      Changed |= lowerParallelAlloca(F);
       break;
     }
   }
