@@ -18,11 +18,13 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Utils.h"
+#include "llvm/Transforms/Utils/LowerParallelAlloca.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <vector>
 
@@ -35,11 +37,25 @@ STATISTIC(NumPromoted, "Number of alloca's promoted");
 static bool promoteMemoryToRegister(Function &F, DominatorTree &DT,
                                     AssumptionCache &AC) {
   std::vector<AllocaInst *> Allocas;
+  std::vector<IntrinsicInst *> ParallelAllocas;
   BasicBlock &BB = F.getEntryBlock(); // Get the entry node for the function
   bool Changed = false;
 
   while (true) {
     Allocas.clear();
+    ParallelAllocas.clear();
+
+    // Lower all promotable parallel_allocas into allocas.
+    for (BasicBlock::iterator I = BB.begin(), E = --BB.end(); I != E; ++I)
+    {
+      IntrinsicInst *II = dyn_cast<IntrinsicInst>(I);
+      if (II && II->getIntrinsicID() == Intrinsic::parallel_alloca) // Is it an alloca?
+        if (isParallelAllocaPromotable(II))
+          ParallelAllocas.push_back(II);
+    }
+
+    for (IntrinsicInst *ParallelAlloca: ParallelAllocas)
+      lowerParallelAllocaToRegularAlloca(ParallelAlloca);
 
     // Find allocas that are safe to promote, by looking at all instructions in
     // the entry node

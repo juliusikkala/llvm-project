@@ -63,7 +63,7 @@ STATISTIC(NumSingleStore,   "Number of alloca's promoted with a single store");
 STATISTIC(NumDeadAlloca,    "Number of dead alloca's removed");
 STATISTIC(NumPHIInsert,     "Number of PHI nodes inserted");
 
-bool llvm::isAllocaPromotable(const AllocaInst *AI) {
+static bool isAllocaLikePromotable(const Instruction *AI) {
   // Only allow direct and non-volatile loads and stores...
   // All loads and stores must use the same type (determined by the first one
   // seen). We don't require the type to match the alloca's declared type.
@@ -111,6 +111,15 @@ bool llvm::isAllocaPromotable(const AllocaInst *AI) {
   }
 
   return true;
+}
+
+bool llvm::isAllocaPromotable(const AllocaInst *AI) {
+  return isAllocaLikePromotable(AI);
+}
+
+bool llvm::isParallelAllocaPromotable(const IntrinsicInst *PA) {
+  assert(PA->getIntrinsicID() == Intrinsic::parallel_alloca);
+  return isAllocaLikePromotable(PA);
 }
 
 namespace {
