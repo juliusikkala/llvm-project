@@ -57,6 +57,7 @@ add_llvm_component_library(LLVMTransformUtils
   LowerIFunc.cpp
   LowerInvoke.cpp
   LowerMemIntrinsics.cpp
+  LowerParallelAlloca.cpp
   LowerSwitch.cpp
   LowerVectorIntrinsics.cpp
   MatrixUtils.cpp
