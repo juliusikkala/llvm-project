@@ -19,7 +19,7 @@
 
 namespace llvm {
 
-class Instruction;
+class Value;
 class IntrinsicInst;
 
 /// Expand \p ParallelAlloca into a "privatized" alloca, where each vector lane
@@ -28,9 +28,7 @@ class IntrinsicInst;
 /// resulting alloca is hoisted to the beginning of the function containing \p
 /// ParallelAlloca. The return value is the vector of addresses to the generated
 /// alloca.
-LLVM_ABI Instruction* lowerParallelAlloca(
-    IntrinsicInst *ParallelAlloca,
-    ElementCount VectorWidth);
+LLVM_ABI Value* lowerParallelAlloca(IntrinsicInst *ParallelAlloca, ElementCount VectorWidth);
 
 /// Expand \p ParallelAlloca as a regular alloca. This has to be done when the
 /// parallel alloca is not in a parallel loop, i.e. if it is still present after
