@@ -4379,7 +4379,7 @@ InstructionCost VPReplicateRecipe::computeCallCost(
 
   Intrinsic::ID IntrinID = CalledFn->getIntrinsicID();
   auto GetIntrinsicCost = [&] {
-    if (!IntrinID)
+    if (!IntrinID || IntrinID == Intrinsic::parallel_alloca)
       return InstructionCost::getInvalid();
     return Ctx.TTI.getIntrinsicInstrCost(
         IntrinsicCostAttributes(IntrinID, ResultTy, Tys), Ctx.CostKind);
