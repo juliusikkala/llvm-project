@@ -612,6 +612,12 @@ bool Loop::isAnnotatedParallel() const {
           continue;
       }
 
+      // Parallel alloca is also always valid in a parallel loop.
+      if (CallInst *CI = dyn_cast<CallInst>(&I)) {
+        if (CI->getCalledFunction()->getIntrinsicID() == Intrinsic::parallel_alloca)
+          continue;
+      }
+
       // The memory instruction can refer to the loop identifier metadata
       // directly or indirectly through another list metadata (in case of
       // nested parallel loops). The loop identifier metadata refers to
