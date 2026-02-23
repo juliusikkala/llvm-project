@@ -3431,12 +3431,16 @@ InstructionCost VPReplicateRecipe::computeCost(ElementCount VF,
       case Intrinsic::lifetime_start:
       case Intrinsic::sideeffect:
       case Intrinsic::pseudoprobe:
-      case Intrinsic::experimental_noalias_scope_decl: {
+      case Intrinsic::experimental_noalias_scope_decl:
+          {
         assert(getCostForIntrinsics(CalledFn->getIntrinsicID(), ArgOps, *this,
                                     ElementCount::getFixed(1), Ctx) == 0 &&
                "scalarizing intrinsic should be free");
         return InstructionCost(0);
       }
+      case Intrinsic::parallel_alloca:
+        // Replication of parallel_alloca is illegal.
+        return InstructionCost::getInvalid();
       default:
         break;
       }
