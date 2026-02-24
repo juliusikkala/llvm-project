@@ -207,6 +207,8 @@ bool llvm::isVectorIntrinsicWithOverloadTypeAtArg(
   case Intrinsic::powi:
   case Intrinsic::ldexp:
     return OpdIdx == -1 || OpdIdx == 1;
+  case Intrinsic::parallel_alloca:
+    return OpdIdx == 0 || OpdIdx == 1;
   default:
     return OpdIdx == -1;
   }
