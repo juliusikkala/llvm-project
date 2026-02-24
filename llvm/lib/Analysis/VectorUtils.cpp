@@ -212,6 +212,8 @@ bool llvm::isVectorIntrinsicWithOverloadTypeAtArg(
     return OpdIdx == 0 || OpdIdx == 1 || OpdIdx == 2;
   case Intrinsic::masked_compressstore:
     return OpdIdx == 0 || OpdIdx == 1;
+  case Intrinsic::parallel_alloca:
+    return OpdIdx == 0 || OpdIdx == 1;
   default:
     return OpdIdx == -1;
   }
