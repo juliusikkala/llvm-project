@@ -13,14 +13,14 @@
 
 using namespace llvm;
 
-Value* llvm::lowerParallelAlloca(
-    IntrinsicInst *ParallelAlloca,
-    ElementCount VectorWidth)
+Value* llvm::lowerParallelAlloca(IntrinsicInst *ParallelAlloca)
 {
   assert(ParallelAlloca->getIntrinsicID() == Intrinsic::parallel_alloca);
 
   auto *SizeParam = ParallelAlloca->getArgOperand(0);
   auto Alignment = cast<ConstantInt>(ParallelAlloca->getArgOperand(1))->getAlignValue();
+  auto *ReturnType = ParallelAlloca->getType();
+  auto *VecReturnType = dyn_cast<llvm::VectorType>(ReturnType);
   unsigned AddrSpace = 0; // TODO
 
   auto AlignmentValue = Alignment.value();
@@ -29,41 +29,43 @@ Value* llvm::lowerParallelAlloca(
   Function *ParentFunc = ParallelAlloca->getParent()->getParent();
   B.SetInsertPointPastAllocas(ParentFunc);
 
-  Value *AllocWidth = B.CreateElementCount(SizeParam->getType(), VectorWidth);
-  auto IntWidth = cast<IntegerType>(SizeParam->getType())->getBitWidth();
-  auto *LaneStride = B.CreateBinOp(
-    Instruction::BinaryOps::And,
-    B.CreateBinOp(
-      Instruction::BinaryOps::Add,
-      SizeParam,
-      B.getIntN(IntWidth, AlignmentValue-1)),
-    B.getIntN(IntWidth, ~(AlignmentValue-1)));
+  Value* ReturnValue = nullptr;
+  if (VecReturnType)
+  {
+      // Vectorized, lowers to a privatized alloca
+      ElementCount VectorWidth = VecReturnType->getElementCount();
 
-  Value *TotalAllocationSize = B.CreateBinOp(Instruction::BinaryOps::Mul, AllocWidth, LaneStride);
-  auto *NewAlloca = B.Insert(new AllocaInst(B.getInt8Ty(), AddrSpace, TotalAllocationSize, Alignment));
+      Value *AllocWidth = B.CreateElementCount(SizeParam->getType(), VectorWidth);
+      auto IntWidth = cast<IntegerType>(SizeParam->getType())->getBitWidth();
+      auto *LaneStride = B.CreateBinOp(
+        Instruction::BinaryOps::And,
+        B.CreateBinOp(
+          Instruction::BinaryOps::Add,
+          SizeParam,
+          B.getIntN(IntWidth, AlignmentValue-1)),
+        B.getIntN(IntWidth, ~(AlignmentValue-1)));
 
-  // Dig out per-lane addresses.
-  auto *BaseAddressVector = B.CreateVectorSplat(VectorWidth, NewAlloca);
+      Value *TotalAllocationSize = B.CreateBinOp(Instruction::BinaryOps::Mul, AllocWidth, LaneStride);
+      auto *NewAlloca = B.Insert(new AllocaInst(B.getInt8Ty(), AddrSpace, TotalAllocationSize, Alignment));
 
-  Value *LaneOffsets = B.CreateBinOp(
-    Instruction::BinaryOps::Mul,
-    B.CreateStepVector(B.getIntNTy(IntWidth)),
-    B.CreateVectorSplat(VectorWidth, LaneStride));
+      // Dig out per-lane addresses.
+      auto *BaseAddressVector = B.CreateVectorSplat(VectorWidth, NewAlloca);
 
-  return B.CreateBinOp(Instruction::BinaryOps::Add, BaseAddressVector, LaneOffsets);
-}
+      Value *LaneOffsets = B.CreateBinOp(
+        Instruction::BinaryOps::Mul,
+        B.CreateStepVector(VectorType::get(B.getIntNTy(IntWidth), VectorWidth)),
+        B.CreateVectorSplat(VectorWidth, LaneStride));
 
-void llvm::lowerParallelAllocaToRegularAlloca(IntrinsicInst *ParallelAlloca) {
-  assert(ParallelAlloca->getIntrinsicID() == Intrinsic::parallel_alloca);
+      ReturnValue = B.CreateInBoundsGEP(B.getInt8Ty(), BaseAddressVector, LaneOffsets);
+  }
+  else
+  {
+      // Non-vectorized, lowers to a normal alloca
+      ReturnValue = B.Insert(new AllocaInst(B.getInt8Ty(), AddrSpace, SizeParam, Alignment));
+  }
 
-  auto *AllocationSize = ParallelAlloca->getArgOperand(0);
-  auto Alignment = cast<ConstantInt>(ParallelAlloca->getArgOperand(1))->getAlignValue();
-
-  IRBuilder<> B(ParallelAlloca);
-  Function *ParentFunc = ParallelAlloca->getParent()->getParent();
-  B.SetInsertPointPastAllocas(ParentFunc);
-
-  auto *NewAlloca = B.Insert(new AllocaInst(B.getInt8Ty(), 0, AllocationSize, Alignment));
-  ParallelAlloca->replaceAllUsesWith(NewAlloca);
+  ParallelAlloca->replaceAllUsesWith(ReturnValue);
   ParallelAlloca->eraseFromParent();
+
+  return ReturnValue;
 }
