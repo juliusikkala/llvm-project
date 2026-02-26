@@ -57,7 +57,7 @@ static bool promoteMemoryToRegister(Function &F, DominatorTree &DT,
     }
 
     for (IntrinsicInst *ParallelAlloca: ParallelAllocas)
-      lowerParallelAllocaToRegularAlloca(ParallelAlloca);
+      lowerParallelAlloca(ParallelAlloca);
 
     BasicBlock &BB = F.getEntryBlock(); // Get the entry node for the function
     // Find allocas that are safe to promote, by looking at all instructions in

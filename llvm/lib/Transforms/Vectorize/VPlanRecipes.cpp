@@ -37,6 +37,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include "llvm/Transforms/Utils/LowerParallelAlloca.h"
 #include <cassert>
 
 using namespace llvm;
@@ -1907,7 +1908,9 @@ void VPWidenIntrinsicRecipe::execute(VPTransformState &State) {
   applyFlags(*V);
   applyMetadata(*V);
 
-  if (!V->getType()->isVoidTy())
+  if (VectorIntrinsicID == Intrinsic::parallel_alloca)
+    State.set(this, lowerParallelAlloca(dyn_cast<IntrinsicInst>(V)));
+  else if (!V->getType()->isVoidTy())
     State.set(this, V);
 }
 

@@ -674,20 +674,16 @@ static bool expandLoopTrap(Function &Intr) {
   return true;
 }
 
-static bool lowerParallelAllocas(Function &F) {
+static bool expandParallelAllocas(Function &F) {
   if (F.use_empty())
     return false;
 
-  // If we encounter parallel allocas in this pass, that means that they are
-  // just regular allocas. The intrinsic is supposed to be handled by the
-  // vectorizer, but if it doesn't run or chooses not to vectorize a loop, we
-  // end up having to handle it here.
   bool Changed = false;
   for (Use &U : llvm::make_early_inc_range(F.uses())) {
     auto *CI = dyn_cast<IntrinsicInst>(U.getUser());
     if (!CI || CI->getCalledOperand() != &F)
       continue;
-    lowerParallelAllocaToRegularAlloca(CI);
+    lowerParallelAlloca(CI);
     Changed = true;
   }
   return Changed;
@@ -849,7 +845,7 @@ bool PreISelIntrinsicLowering::lowerIntrinsics(Module &M) const {
           Changed |= expandCondLoop(*CondLoop);
       break;
     case Intrinsic::parallel_alloca:
-      Changed |= lowerParallelAllocas(F);
+      Changed |= expandParallelAllocas(F);
       break;
     }
   }

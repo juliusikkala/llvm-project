@@ -23,17 +23,9 @@ class Value;
 class IntrinsicInst;
 
 /// Expand \p ParallelAlloca into a "privatized" alloca, where each vector lane
-/// has its own private portion of the alloca. \p ParallelAlloca is not deleted
-/// and its uses are not replaced, the caller is expected to perform that. The
-/// resulting alloca is hoisted to the beginning of the function containing \p
-/// ParallelAlloca. The return value is the vector of addresses to the generated
-/// alloca.
-LLVM_ABI Value* lowerParallelAlloca(IntrinsicInst *ParallelAlloca, ElementCount VectorWidth);
-
-/// Expand \p ParallelAlloca as a regular alloca. This has to be done when the
-/// parallel alloca is not in a parallel loop, i.e. if it is still present after
-/// vectorization passes.
-LLVM_ABI void lowerParallelAllocaToRegularAlloca(IntrinsicInst *ParallelAlloca);
+/// has its own private portion of the alloca. The return type of
+/// `ParallelAlloca` defines the vectorization width.
+LLVM_ABI Value* lowerParallelAlloca(IntrinsicInst *ParallelAlloca);
 
 } // namespace llvm
 

@@ -2000,7 +2000,9 @@ def int_stepvector : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
 def int_reloc_none : DefaultAttrsIntrinsic<[], [llvm_metadata_ty],
   [IntrNoMem, IntrHasSideEffects]>;
 
-def int_parallel_alloca : DefaultAttrsIntrinsic<[llvm_ptr_ty], [llvm_anyint_ty, llvm_anyint_ty], [IntrNoMem, IntrHasSideEffects, NoAlias<RetIndex>, NoUndef<RetIndex>, NonNull<RetIndex>, ImmArg<ArgIndex<0>>, ImmArg<ArgIndex<1>>], "llvm.parallel_alloca">;
+// The return value here should be a pointer, but there appears to be no other
+// way to allow a vector of pointers.
+def int_parallel_alloca : DefaultAttrsIntrinsic<[llvm_any_ty], [llvm_anyint_ty, llvm_anyint_ty], [IntrNoMem, IntrHasSideEffects, NoUndef<RetIndex>, ImmArg<ArgIndex<0>>, ImmArg<ArgIndex<1>>], "llvm.parallel_alloca">;
 
 //===---------------- Vector Predication Intrinsics --------------===//
 // Memory Intrinsics
