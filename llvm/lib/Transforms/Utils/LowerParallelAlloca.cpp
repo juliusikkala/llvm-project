@@ -37,13 +37,14 @@ Value* llvm::lowerParallelAlloca(IntrinsicInst *ParallelAlloca)
 
       Value *AllocWidth = B.CreateElementCount(SizeParam->getType(), VectorWidth);
       auto IntWidth = cast<IntegerType>(SizeParam->getType())->getBitWidth();
+      auto AlignmentMask = B.getIntN(IntWidth, AlignmentValue-1);
       auto *LaneStride = B.CreateBinOp(
         Instruction::BinaryOps::And,
         B.CreateBinOp(
           Instruction::BinaryOps::Add,
           SizeParam,
-          B.getIntN(IntWidth, AlignmentValue-1)),
-        B.getIntN(IntWidth, ~(AlignmentValue-1)));
+          AlignmentMask),
+        B.CreateNot(AlignmentMask));
 
       Value *TotalAllocationSize = B.CreateBinOp(Instruction::BinaryOps::Mul, AllocWidth, LaneStride);
       auto *NewAlloca = B.Insert(new AllocaInst(B.getInt8Ty(), AddrSpace, TotalAllocationSize, Alignment));
