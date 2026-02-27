@@ -21,7 +21,7 @@ Value* llvm::lowerParallelAlloca(IntrinsicInst *ParallelAlloca)
   auto Alignment = cast<ConstantInt>(ParallelAlloca->getArgOperand(1))->getAlignValue();
   auto *ReturnType = ParallelAlloca->getType();
   auto *VecReturnType = dyn_cast<llvm::VectorType>(ReturnType);
-  unsigned AddrSpace = 0; // TODO
+  unsigned AddrSpace = ReturnType->getPointerAddressSpace();
 
   auto AlignmentValue = Alignment.value();
 

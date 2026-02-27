@@ -931,6 +931,66 @@ propagateMemProfMetadata(Function *Callee, CallBase &CB,
   }
 }
 
+static void UpgradeParallelAllocaInsts(CallBase &CB, const DataLayout& DL, Function::iterator FStart, Function::iterator FEnd) {
+  MDNode *AccessGroup = CB.getMetadata(LLVMContext::MD_access_group);
+  if (!AccessGroup)
+    return;
+
+  SmallVector<AllocaInst*,4> ParallelizableAllocaInsts;
+  for (BasicBlock &BB : make_range(FStart, FEnd)) {
+    for (Instruction &I : BB) {
+      if (AllocaInst *AI = dyn_cast<AllocaInst>(&I))
+        ParallelizableAllocaInsts.push_back(AI);
+    }
+  }
+
+  if (ParallelizableAllocaInsts.empty())
+    return;
+
+  SmallVector<Instruction*,4> IncompatibleUsers;
+  for (AllocaInst *AI : ParallelizableAllocaInsts) {
+    auto AllocationSize = AI->getAllocationSize(DL);
+
+    if (AllocationSize.has_value()) {
+      IRBuilder<> Builder(AI);
+      auto *NewAI = Builder.CreateIntrinsic(Intrinsic::parallel_alloca,
+        {
+          Builder.getPtrTy(AI->getAddressSpace()),
+          Builder.getInt64Ty(),
+          Builder.getInt64Ty()
+        },
+        {
+          Builder.getInt64(AllocationSize.value()),
+          Builder.getInt64(AI->getAlign().value())
+        });
+      AI->replaceAllUsesWith(NewAI);
+      AI->eraseFromParent();
+
+      for (User* U : NewAI->users())
+      {
+        if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(U))
+        {
+          switch (II->getIntrinsicID())
+          {
+          case Intrinsic::lifetime_start:
+          case Intrinsic::lifetime_end:
+            IncompatibleUsers.push_back(II);
+            break;
+          default:
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  for (Instruction* I : IncompatibleUsers)
+  {
+    if (I->use_empty())
+      I->eraseFromParent();
+  }
+}
+
 /// When inlining a call site that has !llvm.mem.parallel_loop_access,
 /// !llvm.access.group, !alias.scope or !noalias metadata, that metadata should
 /// be propagated to all memory-accessing cloned instructions.
@@ -2833,6 +2893,10 @@ void llvm::InlineFunctionImpl(CallBase &CB, InlineFunctionInfo &IFI,
     // Clone attributes on the params of the callsite to calls within the
     // inlined function which use the same param.
     AddParamAndFnBasicAttributes(CB, VMap, InlinedFunctionInfo);
+
+    // Turn 'alloca' into `parallel_alloca` intrinsic call if the call is in a
+    // potentially parallel context.
+    UpgradeParallelAllocaInsts(CB, DL, FirstNewBlock, Caller->end());
 
     propagateMemProfMetadata(
         CalledFunc, CB, InlinedFunctionInfo.ContainsMemProfMetadata, VMap, ORE);
