@@ -678,11 +678,28 @@ static bool expandParallelAllocas(Function &F) {
   if (F.use_empty())
     return false;
 
+  unsigned int ParallelMDKind = F.getContext().getMDKindID("llvm.loop.parallel_accesses");
   bool Changed = false;
   for (Use &U : llvm::make_early_inc_range(F.uses())) {
     auto *CI = dyn_cast<IntrinsicInst>(U.getUser());
     if (!CI || CI->getCalledOperand() != &F)
       continue;
+
+    // To be safe, remove parallel metadata from the function so that loops
+    // surrounding the parallel alloca aren't considered parallel after this
+    // transform. There shouldn't be any passes using that metadata after
+    // PreISelIntrinsicLowering, so this is purely defensive.
+    Function *ParentFunc = CI->getParent()->getParent();
+    for (BasicBlock& BB : *ParentFunc) {
+      for (Instruction& I : BB) {
+        if (I.getOpcode() == Instruction::Br) {
+          I.eraseMetadataIf([&](unsigned int MDKind, MDNode*){
+            return MDKind == ParallelMDKind;
+          });
+        }
+      }
+    }
+
     lowerParallelAlloca(CI);
     Changed = true;
   }
