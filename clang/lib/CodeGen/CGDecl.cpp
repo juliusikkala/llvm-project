@@ -1369,6 +1369,11 @@ bool CodeGenFunction::EmitLifetimeStart(llvm::Value *Addr) {
   if (!ShouldEmitLifetimeMarkers)
     return false;
 
+  // If the address is not an `alloca` inst, we don't want to add lifetime
+  // markers.
+  if (!isa<llvm::AllocaInst>(Addr))
+      return false;
+
   assert(Addr->getType()->getPointerAddressSpace() ==
              CGM.getDataLayout().getAllocaAddrSpace() &&
          "Pointer should be in alloca address space");
@@ -1380,6 +1385,9 @@ bool CodeGenFunction::EmitLifetimeStart(llvm::Value *Addr) {
 void CodeGenFunction::EmitLifetimeEnd(llvm::Value *Addr) {
   if (!ShouldEmitLifetimeMarkers)
     return;
+
+  if (!isa<llvm::AllocaInst>(Addr))
+      return;
 
   assert(Addr->getType()->getPointerAddressSpace() ==
              CGM.getDataLayout().getAllocaAddrSpace() &&
