@@ -107,6 +107,19 @@ RawAddress
 CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits Align,
                                              const Twine &Name,
                                              llvm::Value *ArraySize) {
+  if (LoopStack.getCurLoopParallel() && !ArraySize) {
+    // If we're in a parallel loop, we can use the parallel_alloca intrinsic
+    // instead to ensure that the alloca can be vectorized later on.
+    auto *PtrType = Builder.getPtrTy(CGM.getDataLayout().getAllocaAddrSpace());
+    auto TypeSize = CGM.getDataLayout().getTypeAllocSize(Ty);
+    auto *AllocSize = Builder.getInt64(TypeSize);
+    auto *AlignSize = Builder.getInt64(Align.getQuantity());
+    auto *ParallelAlloca = Builder.CreateIntrinsic(
+      llvm::Intrinsic::parallel_alloca,
+      {PtrType, AllocSize->getType(), AlignSize->getType()},
+      {AllocSize, AlignSize}, {}, Name);
+    return RawAddress(ParallelAlloca, Ty, Align, KnownNonNull);
+  }
   auto Alloca = CreateTempAlloca(Ty, Name, ArraySize);
   Alloca->setAlignment(Align.getAsAlign());
   return RawAddress(Alloca, Ty, Align, KnownNonNull);
