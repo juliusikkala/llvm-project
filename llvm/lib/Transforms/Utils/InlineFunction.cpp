@@ -1000,42 +1000,51 @@ static void UpgradeParallelAllocaInsts(CallBase &CB, const DataLayout& DL, Funct
   if (!AccessGroup)
     return;
 
+  auto *Caller = CB.getCaller();
+
   SmallVector<AllocaInst*,4> ParallelizableAllocaInsts;
+  BasicBlock::iterator InsertPoint = Caller->begin()->begin();
   for (BasicBlock &BB : make_range(FStart, FEnd)) {
     for (Instruction &I : BB) {
       if (AllocaInst *AI = dyn_cast<AllocaInst>(&I))
         ParallelizableAllocaInsts.push_back(AI);
+      // Hoist parallel alloca anchors to the beginning of the caller.
+      if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(&I)) {
+        if (II->getIntrinsicID() == Intrinsic::parallel_alloca_anchor) {
+          Caller->getEntryBlock().splice(
+            InsertPoint, &BB, II->getIterator());
+        }
+      }
     }
   }
 
   if (ParallelizableAllocaInsts.empty())
     return;
-
   SmallVector<Instruction*,4> IncompatibleUsers;
   for (AllocaInst *AI : ParallelizableAllocaInsts) {
     auto AllocationSize = AI->getAllocationSize(DL);
 
     if (AllocationSize.has_value()) {
       IRBuilder<> Builder(AI);
-      auto *NewAI = Builder.CreateIntrinsic(Intrinsic::parallel_alloca,
-        {
-          Builder.getPtrTy(AI->getAddressSpace()),
-          Builder.getInt64Ty(),
-          Builder.getInt64Ty()
-        },
+      auto *TokenType = Type::getTokenTy(Builder.getContext());
+      Builder.SetInsertPointPastAllocas(Caller);
+      auto *NewAnchor = Builder.CreateIntrinsic(Intrinsic::parallel_alloca_anchor,
+        { Builder.getInt64Ty(), Builder.getInt64Ty() },
         {
           Builder.getInt64(AllocationSize.value()),
           Builder.getInt64(AI->getAlign().value())
         });
+
+      Builder.SetInsertPoint(AI);
+      auto *NewAI = Builder.CreateIntrinsic(Intrinsic::parallel_alloca,
+        { Builder.getPtrTy(AI->getAddressSpace()) },
+        { NewAnchor });
       AI->replaceAllUsesWith(NewAI);
       AI->eraseFromParent();
 
-      for (User* U : NewAI->users())
-      {
-        if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(U))
-        {
-          switch (II->getIntrinsicID())
-          {
+      for (User* U : NewAI->users()) {
+        if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(U)) {
+          switch (II->getIntrinsicID()) {
           case Intrinsic::lifetime_start:
           case Intrinsic::lifetime_end:
             IncompatibleUsers.push_back(II);
@@ -1048,8 +1057,7 @@ static void UpgradeParallelAllocaInsts(CallBase &CB, const DataLayout& DL, Funct
     }
   }
 
-  for (Instruction* I : IncompatibleUsers)
-  {
+  for (Instruction* I : IncompatibleUsers) {
     if (I->use_empty())
       I->eraseFromParent();
   }

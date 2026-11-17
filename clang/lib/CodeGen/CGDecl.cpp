@@ -1369,10 +1369,12 @@ bool CodeGenFunction::EmitLifetimeStart(llvm::Value *Addr) {
   if (!ShouldEmitLifetimeMarkers)
     return false;
 
-  // If the address is not an `alloca` inst, we don't want to add lifetime
-  // markers.
-  if (!isa<llvm::AllocaInst>(Addr))
+  // If the address is a `parallel_alloca` intrinsic, we don't want to add
+  // lifetime markers.
+  if (llvm::IntrinsicInst* II = dyn_cast<llvm::IntrinsicInst>(Addr)) {
+    if (II->getIntrinsicID() == llvm::Intrinsic::parallel_alloca)
       return false;
+  }
 
   assert(Addr->getType()->getPointerAddressSpace() ==
              CGM.getDataLayout().getAllocaAddrSpace() &&
@@ -1386,8 +1388,10 @@ void CodeGenFunction::EmitLifetimeEnd(llvm::Value *Addr) {
   if (!ShouldEmitLifetimeMarkers)
     return;
 
-  if (!isa<llvm::AllocaInst>(Addr))
+  if (llvm::IntrinsicInst* II = dyn_cast<llvm::IntrinsicInst>(Addr)) {
+    if (II->getIntrinsicID() == llvm::Intrinsic::parallel_alloca)
       return;
+  }
 
   assert(Addr->getType()->getPointerAddressSpace() ==
              CGM.getDataLayout().getAllocaAddrSpace() &&

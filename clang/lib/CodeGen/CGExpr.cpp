@@ -125,10 +125,14 @@ CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits Align,
     auto TypeSize = CGM.getDataLayout().getTypeAllocSize(Ty);
     auto *AllocSize = Builder.getInt64(TypeSize);
     auto *AlignSize = Builder.getInt64(Align.getQuantity());
+    auto *TokenType = llvm::Type::getTokenTy(Builder.getContext());
+    auto *ParallelAllocaAnchor = Builder.CreateIntrinsic(
+      llvm::Intrinsic::parallel_alloca_anchor,
+      {AllocSize->getType(), AlignSize->getType()},
+      {AllocSize, AlignSize}, {}, Name);
     auto *ParallelAlloca = Builder.CreateIntrinsic(
       llvm::Intrinsic::parallel_alloca,
-      {PtrType, AllocSize->getType(), AlignSize->getType()},
-      {AllocSize, AlignSize}, {}, Name);
+      {PtrType}, {ParallelAllocaAnchor}, {}, Name);
     return RawAddress(ParallelAlloca, Ty, Align, KnownNonNull);
   }
 

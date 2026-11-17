@@ -2502,6 +2502,7 @@ CallInst *VPWidenIntrinsicRecipe::createVectorCall(VPTransformState &State) {
 
 void VPWidenIntrinsicRecipe::execute(VPTransformState &State) {
   CallInst *V = createVectorCall(State);
+  // TODO Do we actually want to lower parallel alloca here already?
   if (VectorIntrinsicID == Intrinsic::parallel_alloca)
     State.set(this, lowerParallelAlloca(dyn_cast<IntrinsicInst>(V)));
   else if (!V->getType()->isVoidTy())

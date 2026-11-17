@@ -767,7 +767,7 @@ static bool expandParallelAllocas(Function &F) {
       }
     }
 
-    lowerParallelAlloca(CI);
+    lowerParallelAllocaAnchor(CI);
     Changed = true;
   }
   return Changed;
@@ -984,7 +984,7 @@ bool PreISelIntrinsicLowering::lowerIntrinsics(Module &M) const {
         if (auto *CondLoop = M.getFunction("llvm.cond.loop"))
           Changed |= expandCondLoop(*CondLoop);
       break;
-    case Intrinsic::parallel_alloca:
+    case Intrinsic::parallel_alloca_anchor:
       Changed |= expandParallelAllocas(F);
       break;
     }

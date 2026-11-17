@@ -22,10 +22,16 @@ namespace llvm {
 class Value;
 class IntrinsicInst;
 
-/// Expand \p ParallelAlloca into a "privatized" alloca, where each vector lane
-/// has its own private portion of the alloca. The return type of
-/// `ParallelAlloca` defines the vectorization width.
+/// Turns the give \p ParallelAlloca into a normal alloca. When possible,
+/// prefer using `lowerParallelAllocaAnchor` instead, because it allows sharing
+/// a single alloca for duplicated parallel_alloca's.
 LLVM_ABI Value* lowerParallelAlloca(IntrinsicInst *ParallelAlloca);
+
+/// Expand each parallel_alloca related to the given \p ParallelAllocaAnchor
+/// into a "privatized" alloca, where each vector lane has its own private
+/// portion of the alloca. The return type of the parallel_alloca instances
+/// define the vectorization width.
+LLVM_ABI void lowerParallelAllocaAnchor(IntrinsicInst *ParallelAllocaAnchor);
 
 } // namespace llvm
 
