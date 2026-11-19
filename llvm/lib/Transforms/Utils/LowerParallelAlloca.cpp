@@ -162,6 +162,7 @@ void llvm::lowerParallelAllocaAnchor(IntrinsicInst *ParallelAllocaAnchor)
     else {
       II->replaceAllUsesWith(NewAlloca);
     }
+    II->eraseFromParent();
   }
 
   ParallelAllocaAnchor->eraseFromParent();
