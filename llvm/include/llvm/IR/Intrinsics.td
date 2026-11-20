@@ -2174,6 +2174,11 @@ def int_stepvector : DefaultAttrsIntrinsic<[llvm_any_vector_int_ty],
 def int_reloc_none : DefaultAttrsIntrinsic<[], [llvm_metadata_ty],
   [IntrNoMem, IntrHasSideEffects]>;
 
+def int_parallel_alloca_anchor : DefaultAttrsIntrinsic<[llvm_token_ty], [llvm_anyint_ty, llvm_anyint_ty], [IntrNoMerge, IntrNoMem, ImmArg<ArgIndex<0>>, ImmArg<ArgIndex<1>>], "llvm.parallel_alloca_anchor">;
+
+// Return value should be either a pointer or vector of pointer.
+def int_parallel_alloca : DefaultAttrsIntrinsic<[llvm_any_ty], [llvm_token_ty], [IntrNoMem, IntrHasSideEffects, NoUndef<RetIndex>], "llvm.parallel_alloca">;
+
 //===--------------------- Vector Predication Intrinsics ------------------===//
 // Memory Intrinsics
 def int_vp_store : DefaultAttrsIntrinsic<[],

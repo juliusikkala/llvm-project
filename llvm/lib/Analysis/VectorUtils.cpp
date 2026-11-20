@@ -176,6 +176,8 @@ bool llvm::isVectorIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
     return ScalarOpdIdx == 0;
   case Intrinsic::loop_dependence_war_mask:
     return true;
+  case Intrinsic::parallel_alloca:
+    return ScalarOpdIdx == 0;
   default:
     return false;
   }
@@ -215,6 +217,8 @@ bool llvm::isVectorIntrinsicWithOverloadTypeAtArg(
     return OpdIdx == 0 || OpdIdx == 1 || OpdIdx == 2;
   case Intrinsic::masked_compressstore:
     return OpdIdx == 0 || OpdIdx == 1;
+  case Intrinsic::parallel_alloca:
+    return OpdIdx == -1;
   default:
     return OpdIdx == -1;
   }
@@ -284,7 +288,8 @@ Intrinsic::ID llvm::getVectorIntrinsicIDForCall(const CallInst *CI,
   if (isTriviallyVectorizable(ID) || ID == Intrinsic::lifetime_start ||
       ID == Intrinsic::lifetime_end || ID == Intrinsic::assume ||
       ID == Intrinsic::experimental_noalias_scope_decl ||
-      ID == Intrinsic::sideeffect || ID == Intrinsic::pseudoprobe)
+      ID == Intrinsic::sideeffect || ID == Intrinsic::pseudoprobe ||
+      ID == Intrinsic::parallel_alloca)
     return ID;
   return Intrinsic::not_intrinsic;
 }

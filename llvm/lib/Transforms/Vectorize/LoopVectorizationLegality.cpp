@@ -990,7 +990,7 @@ bool LoopVectorizationLegality::canVectorizeInstr(Instruction &I) {
     auto *SE = PSE.getSE();
     Intrinsic::ID IntrinID = getVectorIntrinsicIDForCall(CI, TLI);
     for (unsigned Idx = 0; Idx < CI->arg_size(); ++Idx)
-      if (isVectorIntrinsicWithScalarOpAtArg(IntrinID, Idx, TTI)) {
+      if (isVectorIntrinsicWithScalarOpAtArg(IntrinID, Idx, TTI) && SE->isSCEVable(CI->getOperand(Idx)->getType())) {
         if (!SE->isLoopInvariant(PSE.getSCEV(CI->getOperand(Idx)), TheLoop)) {
           reportVectorizationFailure(
               "Found unvectorizable intrinsic",
