@@ -126,10 +126,13 @@ CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits Align,
     auto *AllocSize = Builder.getInt64(TypeSize);
     auto *AlignSize = Builder.getInt64(Align.getQuantity());
     auto *TokenType = llvm::Type::getTokenTy(Builder.getContext());
+    auto Pt = Builder.GetInsertPoint();
+    Builder.SetInsertPoint(AllocaInsertPt->getIterator());
     auto *ParallelAllocaAnchor = Builder.CreateIntrinsic(
       llvm::Intrinsic::parallel_alloca_anchor,
       {AllocSize->getType(), AlignSize->getType()},
       {AllocSize, AlignSize}, {}, Name);
+    Builder.SetInsertPoint(Pt);
     auto *ParallelAlloca = Builder.CreateIntrinsic(
       llvm::Intrinsic::parallel_alloca,
       {PtrType}, {ParallelAllocaAnchor}, {}, Name);
