@@ -172,9 +172,8 @@ bool llvm::isVectorIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
   case Intrinsic::masked_expandload:
     return ScalarOpdIdx == 0;
   case Intrinsic::loop_dependence_war_mask:
-    return true;
   case Intrinsic::parallel_alloca:
-    return ScalarOpdIdx == 0;
+    return true;
   default:
     return false;
   }
@@ -214,8 +213,6 @@ bool llvm::isVectorIntrinsicWithOverloadTypeAtArg(
     return OpdIdx == 0 || OpdIdx == 1 || OpdIdx == 2;
   case Intrinsic::masked_compressstore:
     return OpdIdx == 0 || OpdIdx == 1;
-  case Intrinsic::parallel_alloca:
-    return OpdIdx == -1;
   default:
     return OpdIdx == -1;
   }

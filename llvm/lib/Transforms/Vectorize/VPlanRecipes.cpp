@@ -2539,10 +2539,15 @@ InstructionCost VPWidenIntrinsicRecipe::computeCallCost(
   }
 
   Type *RetTy = VF.isVector() ? toVectorizedTy(ScalarRetTy, VF) : ScalarRetTy;
-  SmallVector<Type *> ParamTys =
-      map_to_vector(Operands, [&](const VPValue *Op) {
-        return toVectorTy(Op->getScalarType(), VF);
-      });
+
+  SmallVector<Type *> ParamTys;
+  for (const auto &[Idx, Op] : enumerate(Operands)) {
+    // Some intrinsics have scalar arguments, don't replace them with vectors.
+    if (isVectorIntrinsicWithScalarOpAtArg(ID, Idx, &Ctx.TTI))
+      ParamTys.push_back(Op->getScalarType());
+    else
+      ParamTys.push_back(toVectorTy(Op->getScalarType(), VF));
+  }
 
   VectorInstrContext VIC = VectorInstrContext::None;
   for (const VPValue *Op : Operands)
