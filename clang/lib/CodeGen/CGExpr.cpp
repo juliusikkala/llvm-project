@@ -118,21 +118,20 @@ CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits Align,
     return RawAddress(Alloca, Ty, Align, KnownNonNull);
   }
 
-  if (LoopStack.getCurLoopParallel() && !ArraySize) {
+  auto InsertPt = Builder.GetInsertPoint();
+  if (LoopStack.getCurLoopParallel() && !ArraySize && InsertPt.isValid()) {
     // If we're in a parallel loop, we can use the parallel_alloca intrinsic
     // instead to ensure that the alloca can be vectorized later on.
     auto *PtrType = Builder.getPtrTy(CGM.getDataLayout().getAllocaAddrSpace());
     auto TypeSize = CGM.getDataLayout().getTypeAllocSize(Ty);
     auto *AllocSize = Builder.getInt64(TypeSize);
     auto *AlignSize = Builder.getInt64(Align.getQuantity());
-    auto *TokenType = llvm::Type::getTokenTy(Builder.getContext());
-    auto Pt = Builder.GetInsertPoint();
     Builder.SetInsertPoint(AllocaInsertPt->getIterator());
     auto *ParallelAllocaAnchor = Builder.CreateIntrinsic(
       llvm::Intrinsic::parallel_alloca_anchor,
       {AllocSize->getType(), AlignSize->getType()},
       {AllocSize, AlignSize}, {}, Name);
-    Builder.SetInsertPoint(Pt);
+    Builder.SetInsertPoint(InsertPt);
     auto *ParallelAlloca = Builder.CreateIntrinsic(
       llvm::Intrinsic::parallel_alloca,
       {PtrType}, {ParallelAllocaAnchor}, {}, Name);
