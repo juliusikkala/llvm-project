@@ -119,7 +119,12 @@ CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits Align,
   }
 
   auto InsertPt = Builder.GetInsertPoint();
-  if (LoopStack.getCurLoopParallel() && !ArraySize && InsertPt.isValid()) {
+  // TODO: Remove this HACK once https://github.com/llvm/llvm-project/issues/245605
+  // has a fix; it is most likely also applicable to parallel_alloca.
+  bool ValidInsertLocation = InsertPt.isValid() &&
+    (InsertPt != InsertPt.getNodeParent()->end() || !InsertPt.getNodeParent()->hasTerminator());
+
+  if (LoopStack.getCurLoopParallel() && !ArraySize && ValidInsertLocation) {
     // If we're in a parallel loop, we can use the parallel_alloca intrinsic
     // instead to ensure that the alloca can be vectorized later on.
     auto *PtrType = Builder.getPtrTy(CGM.getDataLayout().getAllocaAddrSpace());
