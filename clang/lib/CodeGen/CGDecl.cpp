@@ -1638,7 +1638,9 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       auto *ParallelAlloca = Builder.CreateIntrinsic(
         llvm::Intrinsic::parallel_alloca,
         {PtrType}, {ParallelAllocaAnchor}, {}, D.getName());
-      address = RawAddress(ParallelAlloca, allocaTy, allocaAlignment, KnownNonNull);
+
+      AllocaAddr = RawAddress(ParallelAlloca, allocaTy, allocaAlignment, KnownNonNull);
+      address = MaybeCastStackAddressSpace(AllocaAddr, Ty.getAddressSpace());
     } else {
       CharUnits allocaAlignment;
       llvm::Type *allocaTy;
