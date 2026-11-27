@@ -745,7 +745,6 @@ static bool expandParallelAllocas(Function &F) {
   if (F.use_empty())
     return false;
 
-  unsigned int ParallelMDKind = F.getContext().getMDKindID("llvm.loop.parallel_accesses");
   bool Changed = false;
   for (Use &U : llvm::make_early_inc_range(F.uses())) {
     auto *CI = dyn_cast<IntrinsicInst>(U.getUser());
