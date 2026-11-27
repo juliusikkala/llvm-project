@@ -118,31 +118,6 @@ CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty, CharUnits Align,
     return RawAddress(Alloca, Ty, Align, KnownNonNull);
   }
 
-  auto InsertPt = Builder.GetInsertPoint();
-  // TODO: Remove this HACK once https://github.com/llvm/llvm-project/issues/245605
-  // has a fix; it is most likely also applicable to parallel_alloca.
-  bool ValidInsertLocation = InsertPt.isValid() &&
-    (InsertPt != InsertPt.getNodeParent()->end() || !InsertPt.getNodeParent()->hasTerminator());
-
-  if (LoopStack.getCurLoopParallel() && !ArraySize && ValidInsertLocation) {
-    // If we're in a parallel loop, we can use the parallel_alloca intrinsic
-    // instead to ensure that the alloca can be vectorized later on.
-    auto *PtrType = Builder.getPtrTy(CGM.getDataLayout().getAllocaAddrSpace());
-    auto TypeSize = CGM.getDataLayout().getTypeAllocSize(Ty);
-    auto *AllocSize = Builder.getInt64(TypeSize);
-    auto *AlignSize = Builder.getInt64(Align.getQuantity());
-    Builder.SetInsertPoint(AllocaInsertPt->getIterator());
-    auto *ParallelAllocaAnchor = Builder.CreateIntrinsic(
-      llvm::Intrinsic::parallel_alloca_anchor,
-      {AllocSize->getType(), AlignSize->getType()},
-      {AllocSize, AlignSize}, {}, Name);
-    Builder.SetInsertPoint(InsertPt);
-    auto *ParallelAlloca = Builder.CreateIntrinsic(
-      llvm::Intrinsic::parallel_alloca,
-      {PtrType}, {ParallelAllocaAnchor}, {}, Name);
-    return RawAddress(ParallelAlloca, Ty, Align, KnownNonNull);
-  }
-
   auto *Alloca = CreateTempAlloca(Ty, Name, ArraySize);
   Alloca->setAlignment(Align.getAsAlign());
   return RawAddress(Alloca, Ty, Align, KnownNonNull);
@@ -231,6 +206,30 @@ RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, const Twine &Name,
 RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, CharUnits Align,
                                           const Twine &Name,
                                           RawAddress *Alloca) {
+
+  if (LoopStack.getCurLoopParallel()) {
+    // If we're in a parallel loop, we can use the parallel_alloca intrinsic
+    // instead to ensure that the alloca can be vectorized later on.
+    auto *PtrType = Builder.getPtrTy(CGM.getDataLayout().getAllocaAddrSpace());
+    auto *MemType = ConvertTypeForMem(Ty);
+    auto TypeSize = CGM.getDataLayout().getTypeAllocSize(MemType);
+    auto *AllocSize = Builder.getInt64(TypeSize);
+    auto *AlignSize = Builder.getInt64(Align.getQuantity());
+    llvm::Value* ParallelAllocaAnchor;
+    {
+      llvm::IRBuilderBase::InsertPointGuard IPG(Builder);
+      Builder.SetInsertPoint(AllocaInsertPt->getIterator());
+      ParallelAllocaAnchor = Builder.CreateIntrinsic(
+        llvm::Intrinsic::parallel_alloca_anchor,
+        {AllocSize->getType(), AlignSize->getType()},
+        {AllocSize, AlignSize}, {}, Name);
+    }
+    auto *ParallelAlloca = Builder.CreateIntrinsic(
+      llvm::Intrinsic::parallel_alloca,
+      {PtrType}, {ParallelAllocaAnchor}, {}, Name);
+    return RawAddress(ParallelAlloca, MemType, Align, KnownNonNull);
+  }
+
   RawAddress Result =
       CreateTempAlloca(ConvertTypeForMem(Ty), Ty.getAddressSpace(), Align, Name,
                        /*ArraySize=*/nullptr, Alloca);
