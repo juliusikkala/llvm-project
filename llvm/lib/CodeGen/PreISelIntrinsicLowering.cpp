@@ -45,6 +45,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
 #include "llvm/Transforms/Utils/LowerVectorIntrinsics.h"
+#include "llvm/Transforms/Utils/LowerParallelAlloca.h"
 
 using namespace llvm;
 
@@ -730,6 +731,22 @@ static bool expandLoopTrap(Function &Intr) {
   return true;
 }
 
+static bool expandParallelAllocas(Function &F) {
+  if (F.use_empty())
+    return false;
+
+  bool Changed = false;
+  for (Use &U : llvm::make_early_inc_range(F.uses())) {
+    auto *CI = dyn_cast<IntrinsicInst>(U.getUser());
+    if (!CI || CI->getCalledOperand() != &F)
+      continue;
+
+    lowerParallelAllocaAnchor(CI);
+    Changed = true;
+  }
+  return Changed;
+}
+
 bool PreISelIntrinsicLowering::lowerIntrinsics(Module &M) const {
   // Map unique constants to globals.
   DenseMap<Constant *, GlobalVariable *> CMap;
@@ -940,6 +957,9 @@ bool PreISelIntrinsicLowering::lowerIntrinsics(Module &M) const {
       if (!TM.canLowerCondLoop())
         if (auto *CondLoop = M.getFunction("llvm.cond.loop"))
           Changed |= expandCondLoop(*CondLoop);
+      break;
+    case Intrinsic::parallel_alloca_anchor:
+      Changed |= expandParallelAllocas(F);
       break;
     }
   }

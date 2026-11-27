@@ -22,12 +22,21 @@ template <typename T> class ArrayRef;
 class AllocaInst;
 class DominatorTree;
 class AssumptionCache;
+class IntrinsicInst;
 
 /// Return true if this alloca is legal for promotion.
 ///
 /// This is true if there are only loads, stores, and lifetime markers
 /// using this alloca.
 LLVM_ABI bool isAllocaPromotable(const AllocaInst *AI);
+
+/// Return true if this parallel alloca is legal for promotion.
+///
+/// It behaves similarly to isAllocaPromotable, but the parameter \p PA is
+/// expected to be the @llvm.parallel_alloca intrinsic. If the parallel alloca
+/// is promotable, it should be lowered into a normal alloca with
+/// lowerParallelAllocaToRegularAlloca and then handled as such.
+LLVM_ABI bool isParallelAllocaPromotable(const IntrinsicInst *PA);
 
 /// Promote the specified list of alloca instructions into scalar
 /// registers, inserting PHI nodes as appropriate.

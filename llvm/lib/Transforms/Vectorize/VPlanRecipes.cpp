@@ -41,6 +41,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include "llvm/Transforms/Utils/LowerParallelAlloca.h"
 #include <cassert>
 
 using namespace llvm;
@@ -2516,7 +2517,10 @@ CallInst *VPWidenIntrinsicRecipe::createVectorCall(VPTransformState &State) {
 
 void VPWidenIntrinsicRecipe::execute(VPTransformState &State) {
   CallInst *V = createVectorCall(State);
-  if (!V->getType()->isVoidTy())
+  // TODO Do we actually want to lower parallel alloca here already?
+  if (VectorIntrinsicID == Intrinsic::parallel_alloca)
+    State.set(this, lowerParallelAlloca(dyn_cast<IntrinsicInst>(V)));
+  else if (!V->getType()->isVoidTy())
     State.set(this, V);
 }
 
@@ -2550,10 +2554,15 @@ InstructionCost VPWidenIntrinsicRecipe::computeCallCost(
   }
 
   Type *RetTy = VF.isVector() ? toVectorizedTy(ScalarRetTy, VF) : ScalarRetTy;
-  SmallVector<Type *> ParamTys =
-      map_to_vector(Operands, [&](const VPValue *Op) {
-        return toVectorTy(Op->getScalarType(), VF);
-      });
+
+  SmallVector<Type *> ParamTys;
+  for (const auto &[Idx, Op] : enumerate(Operands)) {
+    // Some intrinsics have scalar arguments, don't replace them with vectors.
+    if (isVectorIntrinsicWithScalarOpAtArg(ID, Idx, &Ctx.TTI))
+      ParamTys.push_back(Op->getScalarType());
+    else
+      ParamTys.push_back(toVectorTy(Op->getScalarType(), VF));
+  }
 
   VectorInstrContext VIC = VectorInstrContext::None;
   for (const VPValue *Op : Operands) {
@@ -4476,7 +4485,7 @@ InstructionCost VPReplicateRecipe::computeCallCost(
 
   Intrinsic::ID IntrinID = CalledFn->getIntrinsicID();
   auto GetIntrinsicCost = [&] {
-    if (!IntrinID)
+    if (!IntrinID || IntrinID == Intrinsic::parallel_alloca)
       return InstructionCost::getInvalid();
     return Ctx.TTI.getIntrinsicInstrCost(
         IntrinsicCostAttributes(IntrinID, ResultTy, Tys), Ctx.CostKind);
