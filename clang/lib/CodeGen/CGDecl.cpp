@@ -1608,7 +1608,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
           emission.NRVOFlag = NRVOFlag.getPointer();
         }
       }
-    } else if (HaveInsertPoint() && LoopStack.getCurLoopParallel()) {
+    } else if (HaveInsertPoint() && !SanOpts.has(SanitizerKind::MemtagStack) && LoopStack.getCurLoopParallel()) {
       // If we're in a parallel loop, we can use the parallel_alloca intrinsic
       // instead to ensure that the alloca can be vectorized later on.
       CharUnits allocaAlignment;

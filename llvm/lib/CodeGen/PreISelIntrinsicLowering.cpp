@@ -752,21 +752,6 @@ static bool expandParallelAllocas(Function &F) {
     if (!CI || CI->getCalledOperand() != &F)
       continue;
 
-    // To be safe, remove parallel metadata from the function so that loops
-    // surrounding the parallel alloca aren't considered parallel after this
-    // transform. There shouldn't be any passes using that metadata after
-    // PreISelIntrinsicLowering, so this is purely defensive.
-    Function *ParentFunc = CI->getParent()->getParent();
-    for (BasicBlock& BB : *ParentFunc) {
-      for (Instruction& I : BB) {
-        if (isa<UncondBrInst>(I) || isa<CondBrInst>(I)) {
-          I.eraseMetadataIf([&](unsigned int MDKind, MDNode*){
-            return MDKind == ParallelMDKind;
-          });
-        }
-      }
-    }
-
     lowerParallelAllocaAnchor(CI);
     Changed = true;
   }
