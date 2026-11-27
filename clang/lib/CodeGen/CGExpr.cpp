@@ -206,30 +206,6 @@ RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, const Twine &Name,
 RawAddress CodeGenFunction::CreateMemTemp(QualType Ty, CharUnits Align,
                                           const Twine &Name,
                                           RawAddress *Alloca) {
-
-  if (LoopStack.getCurLoopParallel()) {
-    // If we're in a parallel loop, we can use the parallel_alloca intrinsic
-    // instead to ensure that the alloca can be vectorized later on.
-    auto *PtrType = Builder.getPtrTy(CGM.getDataLayout().getAllocaAddrSpace());
-    auto *MemType = ConvertTypeForMem(Ty);
-    auto TypeSize = CGM.getDataLayout().getTypeAllocSize(MemType);
-    auto *AllocSize = Builder.getInt64(TypeSize);
-    auto *AlignSize = Builder.getInt64(Align.getQuantity());
-    llvm::Value* ParallelAllocaAnchor;
-    {
-      llvm::IRBuilderBase::InsertPointGuard IPG(Builder);
-      Builder.SetInsertPoint(AllocaInsertPt->getIterator());
-      ParallelAllocaAnchor = Builder.CreateIntrinsic(
-        llvm::Intrinsic::parallel_alloca_anchor,
-        {AllocSize->getType(), AlignSize->getType()},
-        {AllocSize, AlignSize}, {}, Name);
-    }
-    auto *ParallelAlloca = Builder.CreateIntrinsic(
-      llvm::Intrinsic::parallel_alloca,
-      {PtrType}, {ParallelAllocaAnchor}, {}, Name);
-    return RawAddress(ParallelAlloca, MemType, Align, KnownNonNull);
-  }
-
   RawAddress Result =
       CreateTempAlloca(ConvertTypeForMem(Ty), Ty.getAddressSpace(), Align, Name,
                        /*ArraySize=*/nullptr, Alloca);

@@ -1580,6 +1580,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     // unless:
     // - it's an NRVO variable.
     // - we are compiling OpenMP and it's an OpenMP local variable.
+    // - it's in a parallel loop, where parallel_alloca is desired.
     if (NRVO) {
       // The named return value optimization: allocate this variable in the
       // return slot, so that we can elide the copy when returning this
@@ -1607,6 +1608,37 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
           emission.NRVOFlag = NRVOFlag.getPointer();
         }
       }
+    } else if (HaveInsertPoint() && LoopStack.getCurLoopParallel()) {
+      // If we're in a parallel loop, we can use the parallel_alloca intrinsic
+      // instead to ensure that the alloca can be vectorized later on.
+      CharUnits allocaAlignment;
+      llvm::Type *allocaTy;
+      if (isEscapingByRef) {
+        auto &byrefInfo = getBlockByrefInfo(&D);
+        allocaTy = byrefInfo.Type;
+        allocaAlignment = byrefInfo.ByrefAlignment;
+      } else {
+        allocaTy = ConvertTypeForMem(Ty);
+        allocaAlignment = alignment;
+      }
+
+      auto TypeSize = CGM.getDataLayout().getTypeAllocSize(allocaTy);
+      auto *AllocSize = Builder.getInt64(TypeSize);
+      auto *AlignSize = Builder.getInt64(allocaAlignment.getQuantity());
+      llvm::Value* ParallelAllocaAnchor;
+      {
+        llvm::IRBuilderBase::InsertPointGuard IPG(Builder);
+        Builder.SetInsertPoint(AllocaInsertPt->getIterator());
+        ParallelAllocaAnchor = Builder.CreateIntrinsic(
+          llvm::Intrinsic::parallel_alloca_anchor,
+          {AllocSize->getType(), AlignSize->getType()},
+          {AllocSize, AlignSize}, {}, D.getName());
+      }
+      auto *PtrType = Builder.getPtrTy(CGM.getDataLayout().getAllocaAddrSpace());
+      auto *ParallelAlloca = Builder.CreateIntrinsic(
+        llvm::Intrinsic::parallel_alloca,
+        {PtrType}, {ParallelAllocaAnchor}, {}, D.getName());
+      address = RawAddress(ParallelAlloca, allocaTy, allocaAlignment, KnownNonNull);
     } else {
       CharUnits allocaAlignment;
       llvm::Type *allocaTy;
